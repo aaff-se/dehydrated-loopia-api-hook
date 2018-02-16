@@ -1,6 +1,6 @@
 # Dehydrated Loopia API hook
 
-A DNS hook for automatic renewal of Letsencrypt wildcard certificates through the Loopia API
+A DNS challenge hook for automatic renewal of Letsencrypt wildcard certificates through the Loopia API
 
 ### Requirements
 Apart from Dehydrated, its only dependencies are bash, libxml2 and curl.  
