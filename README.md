@@ -11,6 +11,8 @@ Before the first run you need to manually add a txt record to _acme-challenge.DO
 The script assumes that you only request certificates for DOMAIN.COM and *.DOMAIN.COM - not SUB.DOMAIN.COM or *.SUB.DOMAIN.COM
 
 ### Additional notes
+The ACME v2 endpoint isn't up yet, but the script works fine for the staging endpoint!  
+
 I keep this hook in [Dehydrated-folder]/hooks/loopia/  
 If you don't, you'll need to adjust the auth file source link accordingly.
 
