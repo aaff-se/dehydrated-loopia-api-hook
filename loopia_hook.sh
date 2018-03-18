@@ -12,9 +12,6 @@ TMPDIR='/tmp/loopia-acme'
 
 source "$BASEDIR/hooks/loopia/loopia-api-user.auth" # contains user and pass variables
 
-# source "loopia-api-user.auth" # contains user and pass variables
-
-
 USER=$user
 PASS=$pass
 
@@ -49,7 +46,6 @@ build_get_records_call() {
 		"$(build_param $domain)" \
 		"$(build_param $subdomain)"
 }
-
 
 build_array_update() {
 	local token=$1
@@ -142,7 +138,6 @@ build_remove_record_call() {
 		"$(build_param $record_id "int")"
 }
 
-
 method_call() {
 	local call=$1
 	local result=$(curl -s -c "$TMPDIR/cookies" -d "$call" -H 'Content-Type: text/xml' "$API_URL")
@@ -161,7 +156,6 @@ deploy_challenge() {
 }
 
 clean_challenge() {
-
 	local domain=$1
 
 	local result=$(method_call \
@@ -176,11 +170,8 @@ clean_challenge() {
 
 	for i in ${array[@]}
 	do
-		echo $i
-
-		local test=$(method_call \
+		$(method_call \
 			"$(build_remove_record_call "_acme-challenge" "$domain" "$i")")
-		echo "$test"
 	done
 }
 
@@ -231,7 +222,6 @@ case $1 in
 'deploy_cert')
 	deploy_cert "$2" "$3" "$5"
 	clean_challenge "$2"
-	# we don't need the record id any more
 	# used to keep track of when a cert was last deployed
 	echo "deployed $2" > "$TMPDIR/$2.deploycert"
 	;;
@@ -240,6 +230,7 @@ case $1 in
 	unchanged_cert "$2" "$3" "$5" > "$TMPDIR/$2.unchanged"
 	;;
 'invalid_challenge')
+	# used to keep track of fails
 	invalid_challenge "$2" > "$TMPDIR/$2.fail"
 	;;
 'request_failure')

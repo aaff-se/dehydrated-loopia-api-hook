@@ -12,7 +12,6 @@ The script assumes that you only request certificates for DOMAIN.COM and *.DOMAI
 
 ### Additional notes
 
-
 I keep this hook in [Dehydrated-folder]/hooks/loopia/  
 If you don't, you'll need to adjust the auth file source link accordingly.
 
