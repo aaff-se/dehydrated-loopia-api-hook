@@ -12,6 +12,9 @@ TMPDIR='/tmp/loopia-acme'
 
 source "$BASEDIR/hooks/loopia/loopia-api-user.auth" # contains user and pass variables
 
+# source "loopia-api-user.auth" # contains user and pass variables
+
+
 USER=$user
 PASS=$pass
 
@@ -36,6 +39,17 @@ build_param() {
 		echo -n "$value"
 	echo -n "</$type></value></param>"
 }
+
+build_get_records_call() {
+	local subdomain=$1
+	local domain=$2
+	build_method_call 'getZoneRecords' \
+		"$(build_param $USER)" \
+		"$(build_param $PASS)" \
+		"$(build_param $domain)" \
+		"$(build_param $subdomain)"
+}
+
 
 build_array_update() {
 	local token=$1
@@ -79,15 +93,55 @@ build_update_record_call() {
 		"$(build_array_update $token $record_id)" 
 }
 
-build_get_records_call() {
+
+build_array_add() {
+	local token=$1
+	echo -n '<param>'
+		echo -n '<value><struct>'
+			echo -n '<member>'
+				echo -n "<name>type</name>"
+				echo -n "<value><string>TXT</string></value>"
+			echo -n "</member>"
+			echo -n '<member>'
+				echo -n "<name>ttl</name>"
+				echo -n "<value><int>300</int></value>"
+			echo -n "</member>"
+			echo -n '<member>'
+				echo -n "<name>rdata</name>"
+				echo -n "<value><string>$token</string></value>"
+			echo -n "</member>"
+			echo -n '<member>'
+				echo -n "<name>priority</name>"
+				echo -n "<value><int>10</int></value>"
+			echo -n "</member>"
+		echo -n "</struct></value>"
+	echo -n "</param>"
+}
+
+build_add_record_call() {
 	local subdomain=$1
 	local domain=$2
-	build_method_call 'getZoneRecords' \
+	local token=$3
+	build_method_call 'addZoneRecord' \
 		"$(build_param $USER)" \
 		"$(build_param $PASS)" \
 		"$(build_param $domain)" \
-		"$(build_param $subdomain)"
+		"$(build_param $subdomain)" \
+		"$(build_array_add $token)" 
 }
+
+build_remove_record_call() {
+	local subdomain=$1
+	local domain=$2
+	local record_id=$3
+	build_method_call 'removeZoneRecord' \
+		"$(build_param $USER)" \
+		"$(build_param $PASS)" \
+		"$(build_param $domain)" \
+		"$(build_param $subdomain)" \
+		"$(build_param $record_id "int")"
+}
+
 
 method_call() {
 	local call=$1
@@ -100,23 +154,42 @@ method_call() {
 deploy_challenge() {
 	local domain=$1
 	local token=$2
-	local record_id=$3
-
+	echo "$token"
 	local result=$(method_call \
-		"$(build_update_record_call "_acme-challenge" "$domain" "$token" "$record_id")")
-	
+		"$(build_add_record_call "_acme-challenge" "$domain" "$token")")
 	echo "$result"
 }
 
 clean_challenge() {
+
 	local domain=$1
-	local record_id=$2
+
 	local result=$(method_call \
-		"$(build_update_record_call "_acme-challenge" "$domain" "done" "$record_id")")
+		"$(build_get_records_call "_acme-challenge" "$domain")")
+
+	local xpath='//methodResponse//params//member/name[text()="record_id"]/../value/int'
+	result=$(xmllint --xpath "$xpath" - <<< $result)
+	result=${result//<\/int><int>/" "}
+	result=${result//<int>/""}
+	result=${result//<\/int>/""}
+	local array=($result)
+
+	for i in ${array[@]}
+	do
+		echo $i
+
+		local test=$(method_call \
+			"$(build_remove_record_call "_acme-challenge" "$domain" "$i")")
+		echo "$test"
+	done
 }
 
 deploy_cert() {
 	
+	# you don't really need to do this, and could link directly to
+	# the symlinks in the dehydrated cert folder, but I like nginx 
+	# and to keep my nginx-config-files clean
+
 	local DOMAIN=$1 
 	local KEYFILE=$2
 	local FULLCHAINFILE=$3
@@ -124,16 +197,7 @@ deploy_cert() {
 	ln -sf "$KEYFILE" "/etc/nginx/ssl/$DOMAIN/privkey.pem"
 	ln -sf "$FULLCHAINFILE" "/etc/nginx/ssl/$DOMAIN/fullchain.pem"
 	
-}
-
-get_txt_record() {
-	local domain=$1
-
-	local result=$(method_call \
-		"$(build_get_records_call "_acme-challenge" "$domain")")
-
-	local xpath='//methodResponse//params//member/name[text()="record_id"]/../value/int/text()'
-	echo "$result" | xmllint --xpath "$xpath" -
+	service nginx reload
 }
 
 invalid_challenge() {
@@ -155,20 +219,19 @@ mkdir -p "$TMPDIR"
 
 case $1 in
 'deploy_challenge')
-	get_txt_record $2 > "$TMPDIR/$2.id" # get the record id from loopia for use later
-	deploy_challenge "$2" "$4" "$(cat "$TMPDIR/$2.id")"
+	deploy_challenge "$2" "$4" 
+	sleep 305
 	;;
 'clean_challenge')
-# this seems to clear the challenge txt before letsencypt have had a chance to validate
-# so I moved the cleaning to when the cert is deployed instead
+	# this seems to clear the challenge txt before letsencypt have had a chance to validate
+	# so I moved the cleaning to when the cert is deployed instead
 
-#	clean_challenge "$2" "$(cat "$TMPDIR/$2.id")"
+	# clean_challenge "$2"
 	;;
 'deploy_cert')
 	deploy_cert "$2" "$3" "$5"
-	clean_challenge "$2" "$(cat "$TMPDIR/$2.id")"
+	clean_challenge "$2"
 	# we don't need the record id any more
-	rm "$TMPDIR/$2.id"
 	# used to keep track of when a cert was last deployed
 	echo "deployed $2" > "$TMPDIR/$2.deploycert"
 	;;
